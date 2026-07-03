@@ -1,0 +1,37 @@
+{
+  "wall_name": "Central Station",
+  "fit": "contain",
+  "background": "#000000",
+  "displays": [
+    {
+      "id": 1,
+      "name": "left",
+      "x_mm": 0,
+      "y_mm": 0,
+      "w_mm": 1210,
+      "h_mm": 680,
+      "px_w": 1920,
+      "px_h": 1080
+    },
+    {
+      "id": 2,
+      "name": "centre",
+      "x_mm": 1260,
+      "y_mm": 0,
+      "w_mm": 1210,
+      "h_mm": 680,
+      "px_w": 1920,
+      "px_h": 1080
+    },
+    {
+      "id": 3,
+      "name": "right",
+      "x_mm": 2520,
+      "y_mm": 0,
+      "w_mm": 1210,
+      "h_mm": 680,
+      "px_w": 1920,
+      "px_h": 1080
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# Runs the wall controller (all venues) on boot.
+# Copy to /etc/systemd/system/wall.service then:  sudo systemctl enable --now wall
+[Unit]
+Description=Wall multi-venue controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=wall
+WorkingDirectory=/opt/wall
+Environment=WALL_PASSWORD=change-me
+ExecStart=/usr/bin/python3 /opt/wall/server.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

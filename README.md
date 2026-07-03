@@ -1,4 +1,4 @@
-# VenueWall
+# Wall
 
 A tiny, free, self-hostable video-wall controller for many venues.
 
