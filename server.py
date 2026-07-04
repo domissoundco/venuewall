@@ -23,6 +23,7 @@ import io
 import json
 import os
 import re
+import shutil
 import functools
 from pathlib import Path
 
@@ -260,13 +261,16 @@ DASH_HTML = """<!doctype html><html><head><meta charset=utf-8>
   {% for m in messages %}<div class=flash>{{ m }}</div>{% endfor %}
   <div class=grid>
   {% for s in sites %}
-    <a class=card href="/s/{{ s.slug }}">
-      <div class=wall style="aspect-ratio:{{ s.cw }}/{{ s.ch }}">
-        {% for d in s.displays %}<div class=tile style="left:{{ d.l }}%;top:{{ d.t }}%;width:{{ d.w }}%;height:{{ d.h }}%">
-          <img src="/s/{{ s.slug }}/display/{{ d.id }}/image?v={{ s.ver }}"></div>{% endfor %}
-      </div>
-      <div class=meta><b>{{ s.name }}</b><span>{{ s.n }} screens · /s/{{ s.slug }}</span></div>
-    </a>
+    <div class=card>
+      <button class=del title="Delete venue" onclick="delSite('{{ s.slug }}','{{ s.name }}')">&times;</button>
+      <a class=cardlink href="/s/{{ s.slug }}">
+        <div class=wall style="aspect-ratio:{{ s.cw }}/{{ s.ch }}">
+          {% for d in s.displays %}<div class=tile style="left:{{ d.l }}%;top:{{ d.t }}%;width:{{ d.w }}%;height:{{ d.h }}%">
+            <img src="/s/{{ s.slug }}/display/{{ d.id }}/image?v={{ s.ver }}"></div>{% endfor %}
+        </div>
+        <div class=meta><b>{{ s.name }}</b><span>{{ s.n }} screens · /s/{{ s.slug }}</span></div>
+      </a>
+    </div>
   {% endfor %}
     <form class="card new" method=post action="/new">
       <b>+ New venue</b>
@@ -274,7 +278,12 @@ DASH_HTML = """<!doctype html><html><head><meta charset=utf-8>
       <button>Create</button>
     </form>
   </div>
-</main></body></html>"""
+</main><script>
+function delSite(slug,name){
+  if(!confirm('Delete venue "'+name+'" and all its settings? This cannot be undone.'))return;
+  fetch('/s/'+slug+'/delete',{method:'POST'}).then(r=>{if(r.ok)location.reload();else alert('Could not delete venue.')});
+}
+</script></body></html>"""
 
 PANEL_HTML = """<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1"><title>{{ cfg.wall_name }} · control</title>
@@ -303,11 +312,21 @@ PANEL_HTML = """<!doctype html><html><head><meta charset=utf-8>
 </main><script>
 var slug='{{ slug }}',displays={{ displays_json|safe }},bounds={{ bounds_json|safe }},ver={{ version }};
 var wall=document.getElementById('wall');
+function urlFor(id){return location.protocol+'//'+location.host+'/s/'+slug+'/display/'+id}
 function draw(){wall.innerHTML='';displays.forEach(function(d){var t=document.createElement('div');t.className='tile';
  t.style.left=((d.x_mm-bounds.minx)/bounds.w*100)+'%';t.style.top=((d.y_mm-bounds.miny)/bounds.h*100)+'%';
  t.style.width=(d.w_mm/bounds.w*100)+'%';t.style.height=(d.h_mm/bounds.h*100)+'%';
  var im=new Image();im.src='/s/'+slug+'/display/'+d.id+'/image?v='+ver;
- var lb=document.createElement('b');lb.textContent=d.id;t.appendChild(im);t.appendChild(lb);wall.appendChild(t)})}
+ var lb=document.createElement('b');lb.textContent=d.id;
+ var u=urlFor(d.id);
+ var url=document.createElement('div');url.className='url';url.textContent=u;url.title=u+'  (click to copy)';
+ url.onclick=function(){if(navigator.clipboard){navigator.clipboard.writeText(u);url.textContent='copied ✓';setTimeout(function(){url.textContent=u},900)}};
+ var x=document.createElement('button');x.className='del';x.innerHTML='&times;';x.title='Remove this screen from the wall';
+ x.onclick=function(){delScreen(d.id)};
+ t.appendChild(im);t.appendChild(lb);t.appendChild(url);t.appendChild(x);wall.appendChild(t)})}
+function delScreen(id){if(!confirm('Remove screen '+id+' from this wall?'))return;
+ fetch('/s/'+slug+'/display/'+id+'/delete',{method:'POST'}).then(r=>{
+  if(r.ok){location.reload()}else{r.text().then(t=>alert(t||'Could not remove screen.'))}})}
 function refresh(){fetch('/s/'+slug+'/version',{cache:'no-store'}).then(r=>r.json()).then(d=>{
  if(d.version!==ver){ver=d.version;document.getElementById('ver').textContent=ver;draw()}})}
 draw();setInterval(refresh,1500);
@@ -354,8 +373,11 @@ header .lnk:last-of-type,header .out{margin-left:auto}
 main{max-width:1080px;margin:0 auto;padding:26px}
 .flash{background:#3a1c14;border:1px solid #7a3a24;color:#f0c9b8;padding:10px 14px;border-radius:8px;margin-bottom:16px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;text-decoration:none;color:inherit;display:block}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;color:inherit;display:block}
 .card:hover{border-color:var(--amber)}
+.cardlink{text-decoration:none;color:inherit;display:block}
+.card .del{position:absolute;right:8px;top:8px;z-index:2;width:26px;height:26px;padding:0;line-height:24px;text-align:center;border-radius:6px;background:rgba(0,0,0,.5);color:var(--dim);font-size:16px;border:1px solid var(--line)}
+.card .del:hover{background:#b23b2a;color:#fff;border-color:#b23b2a}
 .card .wall{position:relative;width:100%;background:#000;border-radius:6px;overflow:hidden}
 .meta{margin-top:10px}.meta b{display:block}.meta span{color:var(--dim);font-size:12px}
 .card.new{display:flex;flex-direction:column;gap:10px;justify-content:center;align-items:stretch}
@@ -364,6 +386,9 @@ main{max-width:1080px;margin:0 auto;padding:26px}
 .tile{position:absolute;overflow:hidden;outline:1px solid rgba(232,163,61,.35)}
 .tile img{width:100%;height:100%;object-fit:fill;display:block}
 .tile b{position:absolute;left:4px;top:3px;font-size:10px;color:#fff;text-shadow:0 0 4px #000}
+.tile .url{position:absolute;left:0;right:0;bottom:0;padding:2px 5px;font-size:10px;line-height:1.4;background:rgba(0,0,0,.62);color:#e8dcc4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:copy}
+.tile .del{position:absolute;right:3px;top:3px;width:20px;height:20px;padding:0;line-height:18px;text-align:center;font-size:13px;border-radius:5px;background:rgba(0,0,0,.55);color:#fff;border:0;cursor:pointer}
+.tile .del:hover{background:#b23b2a}
 .drop{border:1.5px dashed var(--line);border-radius:10px;padding:32px;text-align:center;background:var(--panel);cursor:pointer}
 .drop.hot{border-color:var(--amber);background:#1c1811}.drop h2{margin:0 0 6px;font-size:16px}.drop p{margin:0;color:var(--dim);font-size:13px}
 .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:20px 0}
@@ -474,6 +499,34 @@ def reset(slug):
     if master_path(slug).exists():
         master_path(slug).unlink()
     rebuild(slug)
+    return ("", 204)
+
+
+@app.route("/s/<slug>/display/<did>/delete", methods=["POST"])
+@admin_required
+def delete_display(slug, did):
+    if not site_exists(slug):
+        abort(404)
+    cfg = load_cfg(slug)
+    if not display_by_id(cfg, did):
+        abort(404)
+    if len(cfg["displays"]) <= 1:
+        return ("Can't remove the last screen in a wall.", 409)
+    cfg["displays"] = [d for d in cfg["displays"] if str(d["id"]) != str(did)]
+    save_cfg(slug, cfg)
+    stale = state_dir(slug) / f"slice_{did}.png"
+    if stale.exists():
+        stale.unlink()
+    rebuild(slug)
+    return ("", 204)
+
+
+@app.route("/s/<slug>/delete", methods=["POST"])
+@admin_required
+def delete_site(slug):
+    if not site_exists(slug):
+        abort(404)
+    shutil.rmtree(sdir(slug), ignore_errors=True)
     return ("", 204)
 
 
